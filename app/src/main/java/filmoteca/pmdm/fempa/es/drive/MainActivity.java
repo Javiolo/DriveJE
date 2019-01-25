@@ -7,6 +7,7 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.android.gms.auth.api.signin.GoogleSignIn;
@@ -33,19 +34,20 @@ public class MainActivity extends AppCompatActivity {
     GoogleSignInAccount account;
     DriveServiceHelper mDriveServiceHelper;
     Button boton;
+    TextView ruta;
+    TextView nombreFichero;
+    TextView contenidoFichero;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        //savedInstanceState.putBoolean("primeraEjecucion", true);
-
         Log.d("Traza", "onCreate");
+        ruta = findViewById(R.id.editRutaCarpeta);
+        nombreFichero = findViewById(R.id.editFichero);
+        contenidoFichero = findViewById(R.id.editResultado);
 
-        if (getIntent().getStringExtra("prueba") != null) {
-            Log.d("Traza", "segunda vez en onCreate");
-        }
         StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder().permitAll().build();
         StrictMode.setThreadPolicy(policy);
 
@@ -87,7 +89,7 @@ public class MainActivity extends AppCompatActivity {
             id.addOnCompleteListener(new OnCompleteListener<String>() {
                 @Override
                 public void onComplete(Task<String> task) {
-                    mDriveServiceHelper.saveFile(id.getResult(), "loquesea", "wefiohweoifhei");
+                    mDriveServiceHelper.saveFile(id.getResult(), ruta.getText().toString(), contenidoFichero.getText().toString());
                     Toast.makeText(MainActivity.this, "To do ok", Toast.LENGTH_SHORT).show();
                 }
             });

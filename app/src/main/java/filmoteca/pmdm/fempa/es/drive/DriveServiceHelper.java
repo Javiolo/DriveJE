@@ -68,11 +68,6 @@ public class DriveServiceHelper {
                 googleFile = mDriveService.files().create(metadata).execute();
             } catch (UserRecoverableAuthIOException userRecoverableException) {
                 Log.d("Traza", "UserRecoverableAuthIOException ha petao y creo intent de permisos drive");
-
-                //Intent intent = userRecoverableException.getIntent();
-                //mainActivity.startActivity(intent);
-
-                //mainActivity.startActivityForResult(userRecoverableException.getIntent(), MainActivity.REQUEST_AUTHORIZATION);
             }
 
             if (googleFile == null) {
