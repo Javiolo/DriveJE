@@ -23,6 +23,7 @@
         import android.provider.OpenableColumns;
         import android.support.v4.util.Pair;
         import android.util.Log;
+        import android.widget.Toast;
 
         import com.google.android.gms.tasks.Task;
         import com.google.android.gms.tasks.Tasks;
@@ -35,7 +36,9 @@
         import java.io.IOException;
         import java.io.InputStream;
         import java.io.InputStreamReader;
+        import java.util.ArrayList;
         import java.util.Collections;
+        import java.util.List;
         import java.util.concurrent.Executor;
         import java.util.concurrent.Executors;
 
@@ -47,6 +50,8 @@ public class DriveServiceHelper {
     private final Executor mExecutor = Executors.newSingleThreadExecutor();
     private final Drive mDriveService;
     private MainActivity mainActivity;
+    public static String TYPE_GOOGLE_DRIVE_FOLDER = "application/vnd.google-apps.folder";
+
 
     public DriveServiceHelper(Drive driveService, MainActivity mainActivity) {
         mDriveService = driveService;
@@ -56,10 +61,15 @@ public class DriveServiceHelper {
     /**
      * Creates a text file in the user's My Drive folder and returns its file ID.
      */
-    public Task<String> createFile() {
+    public Task<String> createFile(String _ruta) {
         return Tasks.call(mExecutor, () -> {
+            String ruta = "root";
+            if (_ruta.length() >= 1) {
+                ruta = _ruta;
+            }
+
             File metadata = new File()
-                    .setParents(Collections.singletonList("root"))
+                    .setParents(Collections.singletonList(ruta))
                     .setMimeType("text/plain")
                     .setName("Untitled file");
 
@@ -78,29 +88,99 @@ public class DriveServiceHelper {
         });
     }
 
+    public Task<GoogleDriveFileHolder> searchFolder(String folderName) {
+        return Tasks.call(mExecutor, () -> {
+
+            // Retrive the metadata as a File object.
+            FileList result = mDriveService.files().list()
+                    .setQ("mimeType = '" + TYPE_GOOGLE_DRIVE_FOLDER + "' and name = '" + folderName + "' ")
+                    .setSpaces("drive")
+                    .execute();
+            GoogleDriveFileHolder googleDriveFileHolder = new GoogleDriveFileHolder();
+            if (result.getFiles().size() > 0) {
+                googleDriveFileHolder.setId(result.getFiles().get(0).getId());
+                googleDriveFileHolder.setName(result.getFiles().get(0).getName());
+
+            }
+            return googleDriveFileHolder;
+        });
+    }
+
+    public Task<GoogleDriveFileHolder> createFolder(String folderName, String folderId) {
+        return Tasks.call(mExecutor, () -> {
+
+            GoogleDriveFileHolder googleDriveFileHolder = new GoogleDriveFileHolder();
+
+            List<String> root;
+            if (folderId == null) {
+                root = Collections.singletonList("root");
+            } else {
+                root = Collections.singletonList(folderId);
+            }
+            File metadata = new File()
+                    .setParents(root)
+                    .setMimeType(TYPE_GOOGLE_DRIVE_FOLDER)
+                    .setName(folderName);
+
+            File googleFile = mDriveService.files().create(metadata).execute();
+            if (googleFile == null) {
+                throw new IOException("Null result when requesting file creation.");
+            }
+            googleDriveFileHolder.setId(googleFile.getId());
+            return googleDriveFileHolder;
+        });
+    }
+
     /**
      * Opens the file identified by {@code fileId} and returns a {@link Pair} of its name and
      * contents.
      */
     public Task<Pair<String, String>> readFile(String fileId) {
         return Tasks.call(mExecutor, () -> {
-            // Retrieve the metadata as a File object.
-            File metadata = mDriveService.files().get(fileId).execute();
-            String name = metadata.getName();
+            try {
+                // Retrieve the metadata as a File object.
+                File metadata = mDriveService.files().get(fileId).execute();
+                String name = metadata.getName();
 
-            // Stream the file contents to a String.
-            try (InputStream is = mDriveService.files().get(fileId).executeMediaAsInputStream();
-                 BufferedReader reader = new BufferedReader(new InputStreamReader(is))) {
-                StringBuilder stringBuilder = new StringBuilder();
-                String line;
 
-                while ((line = reader.readLine()) != null) {
-                    stringBuilder.append(line);
+                // Stream the file contents to a String.
+                try (InputStream is = mDriveService.files().get(fileId).executeMediaAsInputStream();
+                     BufferedReader reader = new BufferedReader(new InputStreamReader(is))) {
+                    StringBuilder stringBuilder = new StringBuilder();
+                    String line;
+
+                    while ((line = reader.readLine()) != null) {
+                        stringBuilder.append(line);
+                    }
+                    String contents = stringBuilder.toString();
+
+                    return Pair.create(name, contents);
+
                 }
-                String contents = stringBuilder.toString();
-
-                return Pair.create(name, contents);
+            } catch (Exception e) {
+                return null;
             }
+        });
+    }
+
+    public Task<GoogleDriveFileHolder> searchFile(String fileName, String mimeType) {
+        return Tasks.call(mExecutor, () -> {
+
+            FileList result = mDriveService.files().list()
+                    .setQ("name = '" + fileName + "' and mimeType ='" + mimeType + "'")
+                    .setSpaces("drive")
+                    .setFields("files(id, name,size,createdTime,modifiedTime,starred)")
+                    .execute();
+            GoogleDriveFileHolder googleDriveFileHolder = new GoogleDriveFileHolder();
+
+            if (result.getFiles().size() > 0) {
+                googleDriveFileHolder.setId(result.getFiles().get(0).getId());
+                googleDriveFileHolder.setName(result.getFiles().get(0).getName());
+                googleDriveFileHolder.setModifiedTime(result.getFiles().get(0).getModifiedTime());
+                googleDriveFileHolder.setSize(result.getFiles().get(0).getSize());
+            }
+
+            return googleDriveFileHolder;
         });
     }
 
