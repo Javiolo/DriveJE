@@ -28,7 +28,6 @@ import com.google.api.services.drive.DriveScopes;
 import java.util.Collections;
 
 public class MainActivity extends AppCompatActivity {
-
     static final int RC_SIGN_IN = 2;
     static final int REQUEST_AUTHORIZATION = 100;
     GoogleSignInClient mGoogleSignInClient;
@@ -45,7 +44,6 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        Log.d("Traza", "onCreate");
         ruta = findViewById(R.id.editRutaCarpeta);
         nombreFichero = findViewById(R.id.editFichero);
         contenidoFichero = findViewById(R.id.editResultado);
@@ -60,12 +58,10 @@ public class MainActivity extends AppCompatActivity {
                     .build();
 
             mGoogleSignInClient = GoogleSignIn.getClient(this, gso);
-            Log.d("Traza", "mGoogleSignInClient == null");
         }
 
         if (mDriveServiceHelper == null) {
             signIn();
-            Log.d("Traza", "mDriveServiceHelper == null y llama signIn()");
         }
     }
 
@@ -77,32 +73,37 @@ public class MainActivity extends AppCompatActivity {
     public boolean onOptionsItemSelected(MenuItem menu) {
         switch (menu.getItemId()) {
             case R.id.añadir:
-                buscarCarpetaYCrearFichero();
+                if (ruta.getText().toString().length() > 0) {
+                    buscarCarpetaYCrearFichero();
+                } else {
+                    Toast.makeText(this, "Tienes que poner el nombre de la carpeta.", Toast.LENGTH_SHORT).show();
+                }
                 return true;
             case R.id.bajar:
                 contenidoFichero.setText("");
-                new descargarFicheroThread().run();
+                new leerFicheroThread().run();
                 return true;
         }
         return false;
     }
 
-    public class descargarFicheroThread extends Thread {
+    public class leerFicheroThread extends Thread {
         public void run() {
             Task<GoogleDriveFileHolder> ficheroEncontrado = mDriveServiceHelper.searchFile(nombreFichero.getText().toString(), TYPE_PLAIN_TEXT);
 
             ficheroEncontrado.addOnCompleteListener(new OnCompleteListener<GoogleDriveFileHolder>() {
                 @Override
-                public void onComplete(@NonNull Task<GoogleDriveFileHolder> task) {
+                public void onComplete(Task<GoogleDriveFileHolder> task) {
                     Task<android.support.v4.util.Pair<String, String>> fichero = mDriveServiceHelper.readFile(task.getResult().getId());
 
                     fichero.addOnCompleteListener(new OnCompleteListener<android.support.v4.util.Pair<String, String>>() {
                         @Override
-                        public void onComplete(@NonNull Task<android.support.v4.util.Pair<String, String>> task2) {
+                        public void onComplete(Task<android.support.v4.util.Pair<String, String>> task2) {
                             if (task2.getResult() != null) {
                                 contenidoFichero.setText(task2.getResult().second.toString());
+                                Toast.makeText(MainActivity.this, "Descarga completa.", Toast.LENGTH_SHORT).show();
                             } else {
-                                Toast.makeText(MainActivity.this, "Ha petado la descarga", Toast.LENGTH_SHORT).show();
+                                Toast.makeText(MainActivity.this, "Error al descargar.", Toast.LENGTH_SHORT).show();
                             }
 
                         }
@@ -110,8 +111,8 @@ public class MainActivity extends AppCompatActivity {
 
                     fichero.addOnFailureListener(new OnFailureListener() {
                         @Override
-                        public void onFailure(@NonNull Exception e) {
-                            Toast.makeText(MainActivity.this, "Ha petado la descarga", Toast.LENGTH_SHORT).show();
+                        public void onFailure(Exception e) {
+                            Toast.makeText(MainActivity.this, "Error al descargar.", Toast.LENGTH_SHORT).show();
                         }
                     });
                 }
@@ -121,7 +122,6 @@ public class MainActivity extends AppCompatActivity {
 
     public class buscarCarpetaThread extends Thread {
         public void run() {
-            Log.d("TrazaCarpeta", "buscando carpeta llamada " + ruta.getText().toString() );
             Task<GoogleDriveFileHolder> carpetaTask = mDriveServiceHelper.searchFolder(ruta.getText().toString());
 
             carpetaTask.addOnCompleteListener(new OnCompleteListener<GoogleDriveFileHolder>() {
@@ -130,19 +130,15 @@ public class MainActivity extends AppCompatActivity {
                     //Log.d("TrazaCarpeta", "ThreadBuscar ha acabado");
 
                     if (carpetaTask.getResult().getId() == null) {
-                        Log.d("TrazaCarpeta", "Se crea la carpeta");
                         Task<GoogleDriveFileHolder> carpetaCreada = mDriveServiceHelper.createFolder(ruta.getText().toString(), null);
                         carpetaCreada.addOnCompleteListener(new OnCompleteListener<GoogleDriveFileHolder>() {
                             @Override
                             public void onComplete(@NonNull Task<GoogleDriveFileHolder> task) {
                                 carpeta = task.getResult();
-                                Log.d("TrazaCarpeta", "Carpeta creada");
 
                                 if(task.isComplete()) {
-                                    Log.d("TrazaCarpeta", "ThreadBuscar va bien");
                                     new crearFicheroThread().run();
                                 } else {
-                                    Log.d("TrazaCarpeta", "ThreadBuscar se ha adelantado isComplete esta else");
                                 }
                             }
                         });
@@ -151,10 +147,8 @@ public class MainActivity extends AppCompatActivity {
                     }
 
                     if(carpetaTask.isComplete() && carpeta != null) {
-                        Log.d("TrazaCarpeta", "ThreadBuscar va bien");
                         new crearFicheroThread().run();
                     } else {
-                        Log.d("TrazaCarpeta", "ThreadBuscar se ha adelantado isComplete esta else");
                     }
                 }
             });
@@ -164,27 +158,20 @@ public class MainActivity extends AppCompatActivity {
     public void buscarCarpetaYCrearFichero() {
         buscarCarpetaThread threadBuscar = new buscarCarpetaThread();
         if (ruta.getText().toString().length() > 0) {
-            Log.d("TrazaCarpeta", "buscando carpeta");
             threadBuscar.run();
             try {
                 threadBuscar.join();
-                Log.d("TrazaCarpeta", "esperando a....");
             } catch (Exception e) {}
         }
     }
 
     public class crearFicheroThread extends Thread {
         public void run() {
-            //buscarCarpeta();
-
-            Log.d("TrazaCarpeta", "la espera ha acabado");
             Task<String> id;
 
             if (carpeta != null) {
-                Log.d("TrazaCarpeta", "carpeta encontrada con id " + carpeta.getId());
                 id = mDriveServiceHelper.createFile(carpeta.getId());
             } else {
-                Log.d("TrazaCarpeta", "carpeta NO encontrada");
                 id = mDriveServiceHelper.createFile(ruta.getText().toString());
             }
 
@@ -199,7 +186,7 @@ public class MainActivity extends AppCompatActivity {
                 @Override
                 public void onComplete(Task<String> task) {
                     mDriveServiceHelper.saveFile(id.getResult(), nombreFichero.getText().toString(), contenidoFichero.getText().toString());
-                    Toast.makeText(MainActivity.this, "To do ok", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(MainActivity.this, "Archivo creado correctamente.", Toast.LENGTH_SHORT).show();
                     carpeta = null;
                 }
             });
@@ -207,7 +194,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void signIn() {
-        Log.d("Traza", "en signIn()");
         Intent signInIntent = mGoogleSignInClient.getSignInIntent();
         startActivityForResult(signInIntent, RC_SIGN_IN);
     }
@@ -218,10 +204,8 @@ public class MainActivity extends AppCompatActivity {
 
         switch (requestCode) {
             case REQUEST_AUTHORIZATION:
-                Log.d("Traza", "en onActivityResult(), REQUEST_AUTHORIZATION");
                 break;
             case RC_SIGN_IN:
-                Log.d("Traza", "en onActivityResult(), RC_SIGN_IN");
                 Task<GoogleSignInAccount> task = GoogleSignIn.getSignedInAccountFromIntent(data);
                 handleSignInResult(task);
                 seleccionarCuentaGoogle();
@@ -230,7 +214,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void seleccionarCuentaGoogle() {
-        Log.d("Traza", "en seleccionarCuentaGoogle()");
         GoogleAccountCredential credential = GoogleAccountCredential.usingOAuth2(this, Collections.singleton(DriveScopes.DRIVE_FILE));
         credential.setSelectedAccount(account.getAccount());
         com.google.api.services.drive.Drive googleDriveService = new com.google.api.services.drive.Drive.Builder(
@@ -245,7 +228,6 @@ public class MainActivity extends AppCompatActivity {
     private void handleSignInResult(Task<GoogleSignInAccount> completedTask) {
         try {
             account = completedTask.getResult(ApiException.class);
-            Log.d("Traza", "en handleSignInResult(), si llega aqui el account esta ok");
         } catch (ApiException e) {}
     }
 
@@ -253,6 +235,5 @@ public class MainActivity extends AppCompatActivity {
     protected void onStart() {
         super.onStart();
         account = GoogleSignIn.getLastSignedInAccount(this);
-        Log.d("Traza", "en onStart()");
     }
 }
